@@ -108,6 +108,3 @@ You can view the full interactive report here:
 **Live Report:**  
 [link](https://realbogel.github.io/us-energy-temperature-analysis/)
 
----
-
-# Repository Structure
