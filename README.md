@@ -1,5 +1,7 @@
 # U.S. Energy & Temperature Analysis
 
+![Energy Consumption Map](energyMap.png)
+
 This project analyzes the relationship between **U.S. energy consumption and long-term temperature trends** using data visualization and statistical analysis in **R**.
 
 The goal of the project is to explore whether rising temperatures and regional climate differences are associated with changes in energy demand across U.S. states.
