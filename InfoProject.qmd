@@ -1,0 +1,339 @@
+---
+title: "U.S. Energy and Temperature Patterns"
+subtitle: INFO 201 Project Report
+author: Tristan Suwito & Joyce Xu
+date: today
+format: 
+  html:
+    theme: solarized
+    embed-resources: true
+    toc: true
+---
+```{r}
+#install.packages("plotly") 
+#install.packages("DT")
+library(tidyr)
+library(tidyverse)
+library(plotly)
+library(DT)
+energy_df <- read.csv("EnergyDataUS.csv")
+temps <- read_csv("GlobalLandTemperaturesByState.csv")
+```
+
+## Introduction
+
+There are a lot of different ways to look at the relationships between temperature trends and energy usage across different areas of the U.S..
+
+For starters, [The U.S Environmental Protection Agency](https://19january2017snapshot.epa.gov/climate-indicators_.html) has found that the average surface temperature across the U.S. has been rising at an average rate of 0.17 Fahrenheit over the last century. This trend comes with some states experiencing more heat waves, and others experiencing warmer winters.
+
+The U.S. Energy Information Administration's energy data reveals patterns on our electricity and fuel usage shifting with the seasons. Hotter summers usually increase air-conditioning usage, and colder winters mean more heating needed, causing energy usage to rise.
+
+Leaving us with the lingering question: **are these temperature trends actually linked to how energy usage changes over time?**
+
+### Why?
+
+Understanding whether the recent rising temperatures are connected to changes in energy use is important because climate trends can directly impact how much power we use for heating, cooling, and daily life. The importance of our report is to help reveal how climate change may influence future energy needs and how we can better plan for sustainability.
+
+## Analysis of U.S. Energy Usage Patterns
+
+### Questions
+
+Energy usage in the U.S. fluctuates a lot over time, these patterns can tell us a lot about the specific regions and their attributes.
+
+We will use national energy data to examine how energy usage has changed for different states and regions over time. We will look at:
+
+- Which states and regions consume the most energy
+- What are the possible patterns for energy usage and geographic location
+
+### Energy Usage Data
+
+The Energy usage data we are using was compiled by Joe M Lisle on Kaggle using energy data collected for every state in the U.S. from 2010 to 2014 by the Energy Information Administration. This sample size does not cover a long period of time, so the patterns found might not accurately portray the long term or recent energy trends. Data collection methods included recording energy suppliers, utilities, and fuel distributors through surveys.
+
+Data Set: [United States Energy, Census, and GDP 2010-2014](https://www.kaggle.com/datasets/lislejoem/us_energy_census_gdp_10-14/data)
+
+- Population: All U.S. states across all years where the government collects energy data.
+- Sample: All U.S. states with recorded energy data from 2010-2014.
+- Features: State, Region, Total Annual Energy Consumption
+
+According to the documentation from the energy data from the Energy Information Administration:
+
+- Total Annual Energy Consumption is measured in billion BTU by year.
+
+There are 5 different annual measurements from 2010-2014:
+
+```{r}
+energy_totalC <- energy_df |>
+  select(TotalC2010, TotalC2011, TotalC2012, TotalC2013, TotalC2014)
+energy_totalC |> glimpse()
+
+```
+
+For a sample of our data, see below: 
+
+```{r}
+energy_df_small <- energy_df |>
+  select(StateCodes, State, Region, TotalC2010, TotalC2011, TotalC2012, TotalC2013, TotalC2014)
+energy_df_small |> glimpse()
+```
+
+### Data Preparation
+
+In order to analyze energy usage patterns across U.S. states from 2010-2014, we had to first reshape the data set from wide to long format so that yearly energy values could be compared:
+
+```{r}
+energy_df_long <- energy_df |>
+  pivot_longer(
+    cols = starts_with("TotalC"),
+    names_to = "Year",
+    values_to = "TotalConsumption",
+    names_prefix = "TotalC"
+  )
+energy_df_long |>
+  select(StateCodes, State, Region, TotalConsumption)|> glimpse()
+```
+
+Next, we have to check to make sure the Year columns matches the correct year format and turn region numbers into meaningful labels to get group summaries:
+```{r}
+energy_df_long |>
+    mutate(Year = case_when(
+          Year == "2010" ~ "2010",
+          Year == "2011" ~ "2011",
+          Year == "2012" ~ "2012",
+          Year == "2013" ~ "2013",
+          Year == "2014" ~ "2014"
+        ),
+         Region = case_when (
+          Region == 1 ~ "Northeast",
+          Region == 2 ~ "Midwest",
+          Region == 3 ~ "South",
+          Region == 4 ~ "West",
+          is.na(Region) ~ "Unknown"
+          )
+         )
+```
+
+The last step for preparing our first visualization is to group and summarize the data by region and year in order to  calculate the total energy consumption across different regions annually:
+
+```{r}
+energy_group_df <- energy_df_long |>
+  group_by(Year, Region) |>
+  filter(Region != "Unknown") |>
+  summarize(TotalConsumption = sum(TotalConsumption, na.rm = TRUE))
+```
+
+For our second visualization, we need to aggregate state totals to show overall energy consumption of each state in the U.S and turn those overall energy consumption totals from billions BTU to millions BTU:
+
+```{r}
+energy_total_df <- energy_df_long |>
+  group_by(State, StateCodes) |>
+  summarize(TotalConsumption = sum(TotalConsumption, na.rm = TRUE)) |>
+  mutate(TotalConsumption_M = TotalConsumption / 1e6)
+```
+
+### Results
+
+For our first visualization of energy usage trends, we wanted to find out which geographic regions consume the most energy.
+
+```{r}
+#| fig-alt: A stacked bar chart that compares total energy consumption across the Midwest, Northeast, South, and West U.S. regions from 2010 to 2014. Each bar is divided into different colors representing each year.The South shows the highest overall consumption each year, followed by the Midwest and West, while the Northeast has the lowest overall consumption totals. 
+ggplot(energy_group_df, aes(x = Region, y = TotalConsumption, fill = Year)) +
+ geom_col() +
+  labs(
+    title = "Energy Consumption Trends by Region(2010-2014)",
+    subtitle = "Total annual energy consumption in BTU, grouped by region stacked by year",
+    caption = "Data from Kaggle: https://www.kaggle.com/datasets/lislejoem/us_energy_census_gdp_10-14 Note: Data set uses energy data from Energy Information Administration",
+    x = "Region",
+    y = "Total Energy Consumption(BTU)",
+    fill = "Region"
+  ) +
+  theme_minimal()
+```
+
+The U.S. consumed billions of BTU from 2010-2014. By splitting by regions, we can see that the majority of energy consumption comes from the South. The South held the highest energy consumption with the Northeast being the lowest, followed by the West and Midwest. As we go towards the equator down South, there is generally a increase in temperature, meaning that there may be a correlation with geographic factors and energy consumption, due to demands in air conditioning usage and other environmental factors. 
+
+Beyond looking at energy consumption at a region level, we need to look at energy consumption for each state.
+
+```{r}
+plot_ly(
+  data = energy_total_df,
+  type = "choropleth",
+  locations = ~StateCodes,
+  locationmode = "USA-states",
+  z = ~TotalConsumption_M,
+  zmin = 1,
+  zmax = 70,
+  zauto = FALSE,
+  text = ~paste0(
+    State,
+    "Total Energy: ", TotalConsumption_M
+  ),
+  hoverinfo = "text",
+  colorscale = "YlOrRd",
+  colorbar = list(title = "Million BTU")
+) |>
+  layout(
+    title = "Total Energy Consumption by State (2010-2014)",
+    geo = list(
+      scope = "usa",
+      projection = list(type = "albers usa")
+    )
+  )
+```
+
+subtitle: "Chloropleth map showing overall energy consumption from 2010-2014, with colors scaled to highlight differences across states(in million BTU)" 
+
+caption : "Data from Kaggle: https://www.kaggle.com/datasets/lislejoem/us_energy_census_gdp_10-14 Note: Data set uses energy data from Energy Information Administration" 
+
+(subtitle and caption don't work for plotly map)
+
+At a state level, Texas stands out with the clear highest energy consumption out of every U.S. state, with California, Louisiana, and Florida with also higher consumption totals compared to the northern and central states with lower energy consumption ranges. To further answer our guiding question, we must take a look at temperature patterns in the U.S.
+
+### Energy Usage Results
+
+As a summary, energy usage in the United States shows clear regional and state-level differences. From 2010–2014, the South consistently consumed the most energy, far exceeding other regions, while the Northeast used the least. The Midwest and West followed similar patterns of mid-range usage. At the state level, Texas is a major outlier with the highest total energy consumption, and other large states like California, Louisiana, and Florida also rank high. In contrast, most states fall into lower or moderate usage ranges, meaning that a relatively small number of large, high-consumption states account for a significant share of the nation’s total energy demand.
+
+## Analysis of Temperature Trends
+
+### Questions
+
+In this dataset, we focus on two more specific questions related to long-term temperature change:
+
+- **Do U.S. states show a clear warming trend over time? If so, does the rate of warming differ across states?**
+
+- **When looking at long-term average temperatures, how do states differ from each other? Which states are generally warmer or cooler over the entire historical period?**
+
+The first question is addressed using a time-series line plot to examine how temperatures have changed across decades. The second question uses a bar chart to compare long-term average temperatures across all states.
+
+### Temperature Data
+
+**Sample**
+
+The sample comes from the Berkeley Earth **Global Land Temperatures by States** dataset.\
+For this project, I use only observations where the country is **“United States”**. Each row represents a monthly land surface temperature measurement for a specific state and date. In my analysis, I aggregate the data into annual averages, meaning each row ultimately represents the yearly average temperature of one state.\
+dashboard
+
+**Key Variables**
+
+- **State**: A categorical variable identifying the U.S. state.
+
+- **Date / Year**: Originally a specific date; I extract the year to focus on long-term trends.
+
+- **AverageTemperature**: A continuous variable representing the land surface average temperature (in °C).
+
+- **AverageTemperatureUncertainty**: An estimate of the uncertainty in each temperature measurement.\
+    dashboard
+    
+**Strengths and Limitations of the Sample**
+
+A major strength of the dataset is its long time span and consistent measurement format, which makes it highly suitable for studying long-term climate patterns. However, earlier records (especially in the 19th century) have more missing values and higher uncertainty. Some states also have incomplete records for certain periods. This means early-period estimates may be less reliable, although the overall warming trend remains clear.
+
+### Data Preparation
+
+```{r}
+
+us_temps <- temps |>
+  filter(Country == "United States") |>
+  mutate(year = year(dt)) |>
+  group_by(State, year) |>
+  summarize(mean_temp = mean(AverageTemperature, na.rm = TRUE), .groups = "drop")
+```
+
+**(1) Filtering U.S. states and preparing date information**
+
+I first filter the global temperature dataset so that it includes only observations from the United States. The original dataset contains temperature measurements from many countries, and filtering is necessary to ensure that the analysis focuses specifically on U.S. climate trends. This step reduces noise and prepares the data for state-level analysis.
+
+**(2)** Extracting the Year from the Date Variable
+
+The raw dataset is recorded at the monthly level, but my analysis focuses on long-term climate patterns rather than seasonal variation. Extracting the year from each date allows me to aggregate the dataset at the yearly level, which is more appropriate for identifying long-term warming trends.
+
+**(3) Handling missing values and defining the time window**
+
+After extracting the year, I group the data by both **state** and **year** to calculate the annual average temperature for each state. This aggregation smooths out short-term monthly fluctuations and highlights broader warming trends over time. Using `na.rm = TRUE` ensures that missing historical values do not distort the averages.
+
+### Results
+
+ This figure shows how annual average land temperatures have changed in three representative states: California, Texas, and Washington. All three lines slope upward over the twentieth and early twenty-first century, indicating a clear warming trend in each state. There are short-term ups and downs from year to year, but the long-run pattern is that recent decades are consistently warmer than earlier decades. The differences in slope suggest that some states (for example, Texas) have warmed more quickly than others, which highlights that climate change does not affect all regions in exactly the same way.
+
+```{r}
+#| title: "Temperature Change Over Time "
+p1 <- us_temps %>%
+    filter(State %in% c("California","Texas","Washington")) %>%
+    ggplot(aes(x = year, y = mean_temp, color = State)) +
+    geom_line(size = 1.2) +
+    theme_minimal(base_size = 14) +
+    labs(title = "Average Temperature Trends (1900–2020)",
+    x = "Year", y = "Average Temperature (°C)", color = "State")
+ggplotly(p1)
+```
+
+This bar chart compares the long-term average temperature of each U.S. state. States in warmer regions (such as those in the South) have noticeably higher long-term averages, while northern or higher-elevation states are cooler on average. To create this plot, I take the mean of the yearly temperatures for each state, so each bar represents a single long-run baseline temperature. Using the mean here is appropriate because I am interested in overall energy and climate levels over time, and there are no extreme outliers that would strongly distort the average. This figure answers the second smaller question by showing which states are generally warmer or cooler across the entire historical record.
+
+```{r}
+#| title: "State Temperature Comparison Long-Term Average Temperature by State"
+
+p2 <- us_temps %>%
+    group_by(State) %>%
+    summarize(avg_temp = mean(mean_temp, na.rm = TRUE), .groups = "drop") %>%
+    ggplot(aes(x = reorder(State, avg_temp), y = avg_temp, fill = avg_temp)) +
+    geom_col() +
+    coord_flip() +
+    theme_minimal(base_size = 14) +
+    labs(title = "Average Temperature by State (Long-Term)",
+    x = "State", y = "Average Temperature (°C)", fill = "Temp °C")
+p2
+```
+
+## General Conclusions
+
+Based on our results, there does seem to be a real relationship between long-term temperatures and how much energy states use. The warmest states in the South used the most energy from 2010 to 2014. Cooler regions like the Northeast and Midwest used much less. When looking at temperature history, the states that stayed warmer over the years are the same ones that currently have high energy demand. Together, these smaller findings support our main question that rising temperatures can lead to more energy use, especially for cooling.
+
+For the energy part of our analysis, we are likely **underestimating** the true trend. The energy data only covered five years, so it does not show how much demand may have grown in more recent times. We also only had total consumption numbers and no breakdown into residential, commercial, or industrial use. That means we might be giving too much credit to temperature alone when population or economic activity might also affect energy use.
+
+For the temperature analysis, we are probably **underestimating** the influence of climate on energy demand as well. Some older measurements have missing or uncertain values. We also used yearly averages, which hide extreme events like heatwaves that usually cause the biggest increases in energy usage. The overall warming trend is visible, but the real effect on energy needs might be stronger than what our data shows.
+
+Even with these limits, the overall message is still clear. As states get warmer over time, they will likely need more energy, especially during hot seasons. If we want a better understanding of this connection, a longer period of energy data would help. It would also be useful to look at how different sectors use energy and how extreme temperature spikes change demand in the short term. This could give a better picture of what to expect in the future as the climate continues to warm.
+
+## Project Summary
+
+**Group Members:** Tristan Suwito & Joyce Xu
+
+**Lab Section:** Tuesday 10:30am (TA: Anushka Nayak)
+
+**Data Sets Used:**
+
+- [United States Energy, Census, and GDP 2010-2014](https://www.kaggle.com/datasets/lislejoem/us_energy_census_gdp_10-14/data)
+
+- [Climate Change: Earth Surface Temperature Data](https://www.kaggle.com/datasets/berkeleyearth/climate-change-earth-surface-temperature-data)
+
+**Basic Tools Used:**
+
+- filter(), summarize(), distinct(), mutate(), pivot_longer()
+
+**Intermediate/Novel Tools Used:**
+
+- Conditional Transformation
+
+- Maps
+
+## Coding Notes
+
+### Energy Data (Tristan):
+
+I did not use any tools outside of class that weren't from the intermediate/novel tools list.
+
+### Temperature Data (Joyce):
+
+I used several tools that were not directly covered in class. The `year()` function from the
+
+`lubridate`package was used to extract the year from the date column because the dataset is recorded monthly and needed to be converted into a yearly structure for long-term trend analysis. Base R could extract years using string operations, but `lubridate` provides a simpler and more reliable method. I learned how to use this tool from the package documentation and examples online.
+
+I also used`ggplotly()`to create an interactive version of my temperature trend plot. This tool solves the problem of interpreting dense time-series visualizations by allowing the viewer to hover over values and see precise temperature information. ggplot does not provide this functionality on its own. I learned this tool through online tutorials and the official plotly documentation.
+
+If accepted by the TA as a novel tool, the`reorder()`function was also used to sort states by their long-term average temperature in the bar chart. This improves the readability of the visualization and helps highlight meaningful differences across states.
+
+## Group Work Description:
+
+For this project, our group worked together by dividing the analysis into separate dataset components. I was responsible for the Global Land Temperature dataset, including cleaning the data, preparing yearly averages, creating the visualizations, and writing the corresponding analysis and results sections. My group members focused on the other dataset and on combining our work into a consistent final report. We communicated through shared documents and checked each other’s progress to ensure that our analyses used consistent formatting and met the project requirements.
+
+Overall, our group collaborated effectively, though coordinating schedules was occasionally challenging because we were all balancing different deadlines. Even so, we were able to divide the tasks clearly and support each other when questions came up. Working in a group helped make the project more manageable, and reviewing each person’s code and visualizations helped improve the clarity of our final report.
+
